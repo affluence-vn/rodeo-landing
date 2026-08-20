@@ -285,7 +285,8 @@
   }
   .tabs button:last-child { border-right: none; }
   .tabs button.active { background: var(--fill); color: var(--fill-text); }
-  .tabs .theme-btn { flex: 0 0 64px; font-size: 9px; }
+  .tabs .mini-btn { flex: 0 0 62px; font-size: 9px; }
+  .tabs .mini-btn.armed { background: var(--fill); color: var(--fill-text); }
 
   .tracklist {
     list-style: none;
@@ -393,7 +394,8 @@
   <section class="panel">
     <div class="tabs">
       <button id="tab-playlist" class="active">PLAYLIST</button>
-      <button id="btn-theme" class="theme-btn" title="Toggle dark mode">DRK</button>
+      <button id="btn-clear" class="mini-btn" title="Clear playlist">CLR</button>
+      <button id="btn-theme" class="mini-btn" title="Toggle dark mode">DRK</button>
     </div>
     <ul class="tracklist" id="tracklist"></ul>
   </section>
@@ -1015,6 +1017,45 @@ setInterval(() => {
   if (d > 0) progressEl.style.width = (player.getCurrentTime() / d * 100) + '%';
 }, 500);
 
+/* ---- clear the playlist (two taps: arm, then confirm) ---- */
+let clearArmed = false;
+let clearTimer = null;
+const clearBtn = document.getElementById('btn-clear');
+
+function disarmClear() {
+  clearArmed = false;
+  clearTimeout(clearTimer);
+  clearBtn.classList.remove('armed');
+  clearBtn.textContent = 'CLR';
+}
+
+clearBtn.onclick = () => {
+  buzz(12);
+  if (!playlist.length) { toast('ALREADY EMPTY'); return; }
+  if (!clearArmed) {
+    clearArmed = true;
+    clearBtn.classList.add('armed');
+    clearBtn.textContent = 'SURE?';
+    toast('TAP AGAIN TO CLEAR');
+    clearTimer = setTimeout(disarmClear, 3000);
+    return;
+  }
+  disarmClear();
+  buzz([10, 50, 10]);
+  playlist.length = 0;
+  deadIds.clear();
+  persist(LS_PLAYLIST, playlist);
+  current = 0;
+  persistPrefs();
+  playing = false;
+  intendedPlaying = false;
+  if (playerReady) player.stopVideo();
+  document.getElementById('progress').style.width = '0%';
+  toast('PLAYLIST CLEARED');
+  renderAll();
+  syncUrl();
+};
+
 /* ---- dark mode ---- */
 const LS_THEME = 'rodeo.theme';
 function effectiveTheme() {
@@ -1025,6 +1066,7 @@ function applyTheme(pref) {
   if (pref) document.documentElement.dataset.theme = pref;
   else delete document.documentElement.dataset.theme;
   document.getElementById('btn-theme').textContent = effectiveTheme() === 'dark' ? 'LIT' : 'DRK';
+  document.querySelector('meta[name="theme-color"]').content = effectiveTheme() === 'dark' ? '#0a0a0a' : '#ffffff';
 }
 applyTheme(localStorage.getItem(LS_THEME));
 document.getElementById('btn-theme').onclick = () => {
