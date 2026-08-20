@@ -238,7 +238,6 @@
     cursor: pointer;
   }
   .controls button:last-child { border-right: none; }
-  .controls button:hover { background: var(--fill); color: var(--fill-text); }
   .controls button:active { transform: translate(2px, 2px); }
   .controls button.toggled { background: var(--fill); color: var(--fill-text); }
   .controls button.big { font-size: 15px; }
@@ -277,7 +276,6 @@
     cursor: pointer;
     white-space: nowrap;
   }
-  .addbar button:hover { background: transparent; color: var(--ink); }
 
   /* ============ LISTS ============ */
   .tabs { display: flex; }
@@ -294,14 +292,17 @@
     cursor: pointer;
   }
   .tabs button:last-child { border-right: none; }
-  .tabs .mini-btn { flex: 0 0 56px; font-size: 9px; padding: 14px 2px; }
+  .tabs .mini-btn { flex: 0 0 50px; font-size: 8px; padding: 14px 2px; }
+  .tabs #btn-keep { flex: 0 0 38px; font-size: 13px; }
   .tabs .tab-label {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
-    padding: 14px 8px;
+    font-size: 10px;
+    padding: 14px 6px;
+    white-space: nowrap;
+    overflow: hidden;
     border-bottom: 5px solid var(--ink);
     border-right: 5px solid var(--ink);
     background: var(--fill);
@@ -331,7 +332,6 @@
     font-size: 9px;
     line-height: 1.6;
   }
-  .tracklist li:hover { background: var(--hoverline); }
   .tracklist li.dead .t, .tracklist li.dead img { opacity: .4; }
   .tracklist li.dead .t b { color: var(--ink); opacity: 1; font-size: 8px; }
   .tracklist li.current {
@@ -357,13 +357,22 @@
     cursor: pointer;
     flex-shrink: 0;
   }
-  .tracklist li .x:hover { background: var(--fill); color: var(--fill-text); }
   .list-empty {
     padding: 30px 16px;
     font-size: 9px;
     line-height: 2;
     text-align: center;
   }
+
+  /* Hover styling only where a real pointer exists. On touch, :hover latches after a tap
+     and leaves the button looking permanently pressed. */
+  @media (hover: hover) and (pointer: fine) {
+    .controls button:hover { background: var(--fill); color: var(--fill-text); }
+    .addbar button:hover { background: transparent; color: var(--ink); }
+    .tracklist li:hover { background: var(--hoverline); }
+    .tracklist li .x:hover { background: var(--fill); color: var(--fill-text); }
+  }
+  button { -webkit-tap-highlight-color: transparent; }
 
   /* ============ TOAST ============ */
   .toast {
@@ -421,7 +430,8 @@
   <section class="panel">
     <div class="tabs">
       <span class="tab-label" id="tab-playlist">PLAYLIST</span>
-      <button id="btn-qr" class="mini-btn" title="Share as QR code">QR</button>
+      <button id="btn-keep" class="mini-btn" aria-label="Add the playing song to the playlist" title="Add the playing song to the playlist">+</button>
+      <button id="btn-qr" class="mini-btn" aria-label="Share as QR code" title="Share as QR code">QR</button>
       <button id="btn-clear" class="mini-btn" title="Clear playlist">CLR</button>
       <button id="btn-theme" class="mini-btn" title="Toggle dark mode">DRK</button>
     </div>
@@ -1240,6 +1250,20 @@ radioBtn.onclick = () => {
   toast('RADIO ARMED — STARTS AFTER THIS SONG');
 };
 renderRadioBtn();
+
+/* ---- keep whatever is playing (mainly for songs the radio surfaces) ---- */
+document.getElementById('btn-keep').onclick = () => {
+  buzz(12);
+  const t = displayTrack();
+  if (!t) { toast('NOTHING PLAYING'); return; }
+  if (playlist.some(p => p.id === t.id)) { toast('ALREADY IN PLAYLIST'); return; }
+  playlist.push({ id: t.id, title: t.title, thumb: t.thumb, addedAt: Date.now() });
+  persist(LS_PLAYLIST, playlist);
+  // while the station is playing, leave the player alone — rebuilding its queue would cut the song
+  if (!radioActive) rebuildPlayerPlaylist();
+  toast('ADDED TO PLAYLIST');
+  renderAll();
+};
 
 /* ---- clear the playlist (two taps: arm, then confirm) ---- */
 let clearArmed = false;
