@@ -23,8 +23,7 @@
     --shadow: #000;              /* hard neo-brutalist offset shadow */
     --fill: var(--ink);          /* solid fill for active/selected things */
     --fill-text: var(--paper);
-    --seek-text: #fff;
-    --seek-blend: difference;
+    --seek-fill: rgba(0, 0, 0, .2);
   }
   /* dark = smoked translucent plastic lit by a yellow neon tube */
   :root[data-theme="dark"] {
@@ -40,8 +39,7 @@
     --shadow: rgba(0, 0, 0, .82);          /* dark shadow, not a yellow slab */
     --fill: rgba(255, 226, 0, .17);        /* neon tint, keeps the plastic translucent */
     --fill-text: #ffe200;
-    --seek-text: #ffe200;
-    --seek-blend: normal;
+    --seek-fill: rgba(255, 226, 0, .22);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -57,8 +55,7 @@
       --shadow: rgba(0, 0, 0, .82);
       --fill: rgba(255, 226, 0, .17);
       --fill-text: #ffe200;
-      --seek-text: #ffe200;
-      --seek-blend: normal;
+      --seek-fill: rgba(255, 226, 0, .22);
     }
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -187,18 +184,22 @@
     cursor: pointer;
     touch-action: none;
   }
+  /* 80s VU-meter serration: slanted teeth, revealed by clip-path so the pattern never slides */
   .now .progress {
     position: absolute;
     inset: 0;
-    width: 0%;
-    background: var(--fill);
+    background: repeating-linear-gradient(
+      105deg,
+      var(--seek-fill) 0 9px,
+      transparent 9px 14px
+    );
+    clip-path: inset(0 100% 0 0);
     pointer-events: none;
   }
   .now-label, .now-title-clip {
     position: relative;
     z-index: 1;
-    color: var(--seek-text);
-    mix-blend-mode: var(--seek-blend); /* light: difference keeps text legible over the fill */
+    color: var(--ink);
   }
   .now-label { font-size: 8px; margin-bottom: 10px; }
   .now-title-clip { overflow: hidden; white-space: nowrap; }
@@ -557,7 +558,7 @@ function syncFromPlayer() {
     const t = playlist[idx];
     let changed = idx !== current;
     current = idx;
-    if (changed) document.getElementById('progress').style.width = '0%';
+    if (changed) setProgress(0);
     if (data.title && t.title !== data.title) {
       t.title = data.title;
       persist(LS_PLAYLIST, playlist);
@@ -581,7 +582,7 @@ function playIndex(i, autostart) {
   if (!playlist.length) { toast('PLAYLIST EMPTY'); return; }
   current = ((i % playlist.length) + playlist.length) % playlist.length;
   persistPrefs();
-  document.getElementById('progress').style.width = '0%';
+  setProgress(0);
   if (autostart) intendedPlaying = true;
   if (playerReady) {
     if (autostart && queueMatches()) {
@@ -992,6 +993,12 @@ const nowSeek = document.getElementById('now-seek');
 const progressEl = document.getElementById('progress');
 let seeking = false;
 
+// reveal the serrated fill left-to-right; clip-path keeps the teeth pinned to the bar
+function setProgress(pct) {
+  const p = Math.min(100, Math.max(0, pct || 0));
+  progressEl.style.clipPath = 'inset(0 ' + (100 - p) + '% 0 0)';
+}
+
 function seekFromEvent(e) {
   if (!playerReady || !playlist.length) return;
   const rect = nowSeek.getBoundingClientRect();
@@ -999,7 +1006,7 @@ function seekFromEvent(e) {
   const d = player.getDuration() || 0;
   if (d > 0) {
     player.seekTo(frac * d, true);
-    progressEl.style.width = (frac * 100) + '%';
+    setProgress(frac * 100);
   }
 }
 nowSeek.addEventListener('pointerdown', e => {
@@ -1014,7 +1021,7 @@ nowSeek.addEventListener('pointercancel', () => { seeking = false; });
 setInterval(() => {
   if (!playerReady || !playing || seeking) return;
   const d = player.getDuration() || 0;
-  if (d > 0) progressEl.style.width = (player.getCurrentTime() / d * 100) + '%';
+  if (d > 0) setProgress(player.getCurrentTime() / d * 100);
 }, 500);
 
 /* ---- clear the playlist (two taps: arm, then confirm) ---- */
@@ -1050,7 +1057,7 @@ clearBtn.onclick = () => {
   playing = false;
   intendedPlaying = false;
   if (playerReady) player.stopVideo();
-  document.getElementById('progress').style.width = '0%';
+  setProgress(0);
   toast('PLAYLIST CLEARED');
   renderAll();
   syncUrl();
