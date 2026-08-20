@@ -782,6 +782,13 @@ function livePlaylist() { return playlist.filter(t => !deadIds.has(t.id)); }
 
 function next() {
   if (!playerReady) return;
+  // radio armed and the user wants the next song now: hand off instead of walking the playlist
+  if (radioPending && !radioActive) {
+    radioPending = false;
+    const d = player.getVideoData && player.getVideoData();
+    const seed = (d && d.video_id) || (playlist[current] && playlist[current].id);
+    if (seed) { startRadio(seed, true); renderRadioBtn(); return; }
+  }
   if (radioActive) {
     intendedPlaying = true;
     showStationTrack(stationPeek(1));
