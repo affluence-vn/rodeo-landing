@@ -294,10 +294,26 @@
     cursor: pointer;
   }
   .tabs button:last-child { border-right: none; }
-  .tabs button.active { background: var(--fill); color: var(--fill-text); }
   .tabs .mini-btn { flex: 0 0 56px; font-size: 9px; padding: 14px 2px; }
+  .tabs .tab-label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    padding: 14px 8px;
+    border-bottom: 5px solid var(--ink);
+    border-right: 5px solid var(--ink);
+    background: var(--fill);
+    color: var(--fill-text);
+  }
+
+  /* keyboard users need to see where they are */
+  button:focus-visible, input:focus-visible {
+    outline: 4px solid var(--ink);
+    outline-offset: -8px;
+  }
   .tabs .mini-btn.armed,
-  .tabs .mini-btn.on { background: var(--fill); color: var(--fill-text); }
 
   .tracklist {
     list-style: none;
@@ -349,64 +365,6 @@
     text-align: center;
   }
 
-  /* ============ LOCK ============ */
-  .lock {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background: var(--paper);
-  }
-  .lock.open { display: flex; }
-  .lock.unlocked { display: none; }
-  .lock-box {
-    border: 5px solid var(--ink);
-    background: var(--panel-bg);
-    backdrop-filter: var(--blur);
-    -webkit-backdrop-filter: var(--blur);
-    box-shadow: 10px 10px 0 var(--shadow), var(--glow);
-    padding: 26px 20px;
-    width: 100%;
-    max-width: 340px;
-    text-align: center;
-  }
-  .lock-box h1 { font-size: 20px; margin-bottom: 12px; }
-  .lock-box p { font-size: 8px; margin-bottom: 20px; }
-  .lock-box input {
-    width: 100%;
-    font-family: inherit;
-    font-size: 16px;
-    padding: 14px 12px;
-    margin-bottom: 14px;
-    border: 4px solid var(--ink);
-    background: transparent;
-    color: var(--ink);
-    outline: none;
-    text-align: center;
-  }
-  .lock-box input::placeholder { color: var(--ghost); font-size: 10px; }
-  .lock-box button {
-    width: 100%;
-    font-family: inherit;
-    font-size: 12px;
-    padding: 15px;
-    border: none;
-    background: var(--fill);
-    color: var(--fill-text);
-    cursor: pointer;
-  }
-  .lock-box button:active { transform: translate(2px, 2px); }
-  .lock-err {
-    display: none;
-    font-size: 8px;
-    margin-top: 14px;
-    line-height: 1.8;
-  }
-  .lock-err.show { display: block; }
-
   /* ============ TOAST ============ */
   .toast {
     position: fixed;
@@ -451,18 +409,18 @@
       <div class="now-title-clip"><span class="now-title" id="now-title">NOTHING YET — PRESS PLAY</span></div>
     </div>
     <div class="controls">
-      <button id="btn-prev" title="Previous">|&lt;</button>
-      <button id="btn-play" class="big" title="Play/Pause">&gt;</button>
-      <button id="btn-next" title="Next">&gt;|</button>
-      <button id="btn-shuffle" title="Shuffle">RND</button>
-      <button id="btn-radio" title="Radio: follow suggestions after this song">RDO</button>
+      <button id="btn-prev" aria-label="Previous track" title="Previous">|&lt;</button>
+      <button id="btn-play" aria-label="Play or pause" class="big" title="Play/Pause">&gt;</button>
+      <button id="btn-next" aria-label="Next track" title="Next">&gt;|</button>
+      <button id="btn-shuffle" aria-label="Shuffle" title="Shuffle">RND</button>
+      <button id="btn-radio" aria-label="Radio: follow suggestions after this song" title="Radio: follow suggestions after this song">RDO</button>
     </div>
   </section>
 
   <!-- LISTS -->
   <section class="panel">
     <div class="tabs">
-      <button id="tab-playlist" class="active">PLAYLIST</button>
+      <span class="tab-label" id="tab-playlist">PLAYLIST</span>
       <button id="btn-qr" class="mini-btn" title="Share as QR code">QR</button>
       <button id="btn-clear" class="mini-btn" title="Clear playlist">CLR</button>
       <button id="btn-theme" class="mini-btn" title="Toggle dark mode">DRK</button>
@@ -477,17 +435,6 @@
   </div>
 </main>
 
-<div class="lock" id="lock">
-  <div class="lock-box">
-    <h1>RODEO</h1>
-    <p>PRIVATE STATION</p>
-    <input id="lock-input" type="password" inputmode="text" autocomplete="off"
-           spellcheck="false" placeholder="PASSCODE">
-    <button id="lock-go">ENTER</button>
-    <span class="lock-err" id="lock-err">WRONG PASSCODE</span>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <div id="yt-holder">
@@ -495,43 +442,6 @@
 </div>
 
 <script>
-/* ================= LOCK =================
-   A private-station gate. This keeps strangers out of the page; it is NOT real
-   security, since the check runs client-side and the page source is readable.
-   Web Crypto needs a secure context, and this site is still served over http,
-   so the comparison uses a plain string hash rather than SHA-256. */
-const LOCK_HASH = 4164285584;   // djb2 of the passcode
-const LS_LOCK = 'rodeo.key';
-
-function djb2(str) {
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-const lockEl = document.getElementById('lock');
-function unlock() { lockEl.classList.add('unlocked'); }
-
-if (Number(localStorage.getItem(LS_LOCK)) === LOCK_HASH) {
-  unlock();
-} else {
-  const tryCode = () => {
-    const val = document.getElementById('lock-input').value.trim();
-    if (djb2(val) === LOCK_HASH) {
-      localStorage.setItem(LS_LOCK, String(LOCK_HASH));
-      unlock();
-    } else {
-      document.getElementById('lock-err').classList.add('show');
-      document.getElementById('lock-input').value = '';
-    }
-  };
-  document.getElementById('lock-go').onclick = tryCode;
-  document.getElementById('lock-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') tryCode();
-  });
-  setTimeout(() => document.getElementById('lock-input').focus(), 100);
-}
-
 /* ================= STATE ================= */
 const LS_PLAYLIST = 'rodeo.playlist';
 const LS_STATE    = 'rodeo.state';
@@ -566,6 +476,7 @@ let current = Math.min(prefs.index || 0, Math.max(playlist.length - 1, 0));
 let shuffle = !!prefs.shuffle;
 let volume  = typeof prefs.volume === 'number' ? prefs.volume : 80;
 let playing = false;
+let buffering = false;
 let intendedPlaying = false; // user WANTS music (vs. OS pausing us on screen lock)
 const deadIds = new Set();   // videos YouTube refused (removed / private / embed-disabled)
 let errorStreak = 0;         // consecutive dead tracks — guards against an all-dead spin
@@ -638,8 +549,10 @@ function onYouTubeIframeAPIReady() {
         }
       },
       onStateChange: (e) => {
+        if (e.data === YT.PlayerState.BUFFERING) { buffering = true; renderDeck(); }
         if (e.data === YT.PlayerState.PLAYING) {
           playing = true;
+          buffering = false;
           errorStreak = 0; // a track actually played — reset dead-sweep counter
           player.setLoop(true);
           syncFromPlayer();
@@ -650,6 +563,7 @@ function onYouTubeIframeAPIReady() {
         }
         else if (e.data === YT.PlayerState.PAUSED) {
           playing = false;
+          buffering = false;
           // screen lock / backgrounding paused us but the user wants music: fight back
           if (document.hidden && intendedPlaying) {
             player.playVideo();
@@ -1136,12 +1050,19 @@ function renderDeck() {
     title.textContent = 'PLAYLIST EMPTY — PASTE A URL BELOW';
     title.classList.add('scroll');
   }
+  const label = buffering ? 'BUFFERING\u2026'
+    : radioActive ? 'RADIO:'
+    : radioPending ? 'TRACK: \u2192 RADIO NEXT'
+    : 'TRACK:';
+  document.querySelector('.now-label').textContent = label;
   playBtn.innerHTML = playing ? '&#10073;&#10073;' : '&gt;';
   document.getElementById('btn-shuffle').classList.toggle('toggled', shuffle);
   document.title = (playing && t) ? '▶ ' + t.title + ' — RODEO.VN' : 'RODEO.VN — NONSTOP RADIO';
 }
 
 function renderList() {
+  const tabLabel = document.getElementById('tab-playlist');
+  if (tabLabel) tabLabel.textContent = playlist.length ? 'PLAYLIST \u00b7 ' + playlist.length : 'PLAYLIST';
   const ul = document.getElementById('tracklist');
   ul.innerHTML = '';
 
@@ -1292,7 +1213,10 @@ setInterval(() => {
 
 /* ---- true radio: keep the queue topped up with YouTube's suggested tracks ---- */
 const radioBtn = document.getElementById('btn-radio');
-function renderRadioBtn() { radioBtn.classList.toggle('toggled', radioActive || radioPending); }
+function renderRadioBtn() {
+  radioBtn.classList.toggle('toggled', radioActive || radioPending);
+  renderDeck();   // the TRACK/RADIO label reflects the same state
+}
 
 radioBtn.onclick = () => {
   buzz(12);
