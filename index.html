@@ -11,6 +11,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="RODEO">
+<link rel="preconnect" href="https://i.ytimg.com">
+<link rel="preconnect" href="https://www.youtube.com">
+<link rel="dns-prefetch" href="https://googlevideo.com">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -546,7 +549,16 @@ function onYouTubeIframeAPIReady() {
             scheduleBackgroundResume();
           }
         }
-        else if (e.data === YT.PlayerState.ENDED) { skipDead(false); return; } // loop normally handles this; fallback
+        else if (e.data === YT.PlayerState.ENDED) {
+          if (radioPending) {
+            radioPending = false;
+            startRadio(player.getVideoData().video_id, true);
+            renderRadioBtn();
+            return;
+          }
+          skipDead(false);
+          return;
+        } // loop normally handles this; fallback
         renderDeck();
       },
       onError: (e) => {
@@ -557,12 +569,58 @@ function onYouTubeIframeAPIReady() {
   });
 }
 
+/* ---- preload the next few tracks ----
+   The audio itself lives inside YouTube's iframe and cannot be prefetched from here, but the
+   artwork and titles can be. Warming them means pressing Next paints the real next track
+   immediately instead of waiting ~600ms for the player to report what it loaded. */
+const metaCache = new Map();   // videoId -> title (null while the lookup is in flight)
+
+function warmMeta(id) {
+  if (!id || metaCache.has(id)) return;
+  metaCache.set(id, null);
+  new Image().src = `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;   // into the browser cache
+  fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${id}`)
+    .then(r => r.json())
+    .then(j => { if (j && j.title) metaCache.set(id, j.title); })
+    .catch(() => {});
+}
+
+// where the station will go next, without disturbing it
+function stationPeek(delta) {
+  if (!playerReady || !player.getPlaylist) return null;
+  const q = player.getPlaylist() || [];
+  const i = player.getPlaylistIndex ? player.getPlaylistIndex() : -1;
+  if (!q.length || i < 0) return null;
+  return q[(i + delta + q.length) % q.length];
+}
+
+function warmUpcoming(depth = 3) {
+  for (let d = 1; d <= depth; d++) {
+    if (radioActive) warmMeta(stationPeek(d));
+    else if (playlist.length) warmMeta(playlist[(current + d) % playlist.length].id);
+  }
+}
+
+// paint a station track from cache the instant the user asks for it
+function showStationTrack(id) {
+  if (!id) return;
+  radioTrack = {
+    id,
+    title: metaCache.get(id) || 'LOADING\u2026',
+    thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
+  };
+  setProgress(0);
+  renderAll();
+  setTimeout(warmUpcoming, 400);
+}
+
 /* ---- radio mode ----
    YouTube auto-generates a station for any video at list id RD<videoId>. Handing that list
    to the player lets the IFRAME advance through the suggestions itself, which is what keeps
    playing while the page is backgrounded. The user's playlist is never modified: it stays in
    localStorage untouched and is restored the moment radio is switched off. */
 let radioActive = false;
+let radioPending = false;   // armed, but the current song finishes first
 let radioTrack = null;   // what the station is currently playing (never added to `playlist`)
 
 function startRadio(seedId, autostart) {
@@ -574,10 +632,12 @@ function startRadio(seedId, autostart) {
   if (autostart) { intendedPlaying = true; player.loadPlaylist(list); }
   else player.cuePlaylist(list);
   renderAll();
+  setTimeout(warmUpcoming, 1500);   // the queue only exists once the list has loaded
 }
 
 // hand playback back to the user's own list, exactly where it was
 function stopRadio(autostart) {
+  radioPending = false;
   if (!radioActive) return;
   radioActive = false;
   radioTrack = null;
@@ -604,13 +664,20 @@ function syncFromPlayer() {
       title: data.title || 'RADIO TRACK',
       thumb: `https://i.ytimg.com/vi/${data.video_id}/mqdefault.jpg`,
     };
-    if (changed) { setProgress(0); renderAll(); }
+    if (changed) { setProgress(0); renderAll(); warmUpcoming(); }
     updateMediaSession();
     syncUrl();
     return;
   }
   const idx = playlist.findIndex(t => t.id === data.video_id);
   if (idx !== -1) {
+    const finishedId = playlist[current] && playlist[current].id;
+    if (idx !== current && radioPending) {
+      radioPending = false;
+      startRadio(finishedId || data.video_id, true);   // suggestions of the song that just played
+      renderRadioBtn();
+      return;
+    }
     const t = playlist[idx];
     let changed = idx !== current;
     current = idx;
@@ -621,7 +688,7 @@ function syncFromPlayer() {
       changed = true;
     }
     persistPrefs();
-    if (changed) renderAll();
+    if (changed) { renderAll(); warmUpcoming(); }
   }
   updateMediaSession();
   syncUrl();
@@ -715,7 +782,13 @@ function livePlaylist() { return playlist.filter(t => !deadIds.has(t.id)); }
 
 function next() {
   if (!playerReady) return;
-  if (radioActive) { intendedPlaying = true; player.nextVideo(); setTimeout(syncFromPlayer, 600); return; }
+  if (radioActive) {
+    intendedPlaying = true;
+    showStationTrack(stationPeek(1));
+    player.nextVideo();
+    setTimeout(syncFromPlayer, 600);
+    return;
+  }
   if (!playlist.length) return;
   intendedPlaying = true;
   errorStreak = 0; // fresh user action gets a full sweep
@@ -729,7 +802,13 @@ function next() {
 }
 function prev() {
   if (!playerReady) return;
-  if (radioActive) { intendedPlaying = true; player.previousVideo(); setTimeout(syncFromPlayer, 600); return; }
+  if (radioActive) {
+    intendedPlaying = true;
+    showStationTrack(stationPeek(-1));
+    player.previousVideo();
+    setTimeout(syncFromPlayer, 600);
+    return;
+  }
   if (!playlist.length) return;
   intendedPlaying = true;
   errorStreak = 0;
@@ -1086,7 +1165,7 @@ setInterval(() => {
 
 /* ---- true radio: keep the queue topped up with YouTube's suggested tracks ---- */
 const radioBtn = document.getElementById('btn-radio');
-function renderRadioBtn() { radioBtn.classList.toggle('on', radioActive); }
+function renderRadioBtn() { radioBtn.classList.toggle('on', radioActive || radioPending); }
 
 radioBtn.onclick = () => {
   buzz(12);
@@ -1096,11 +1175,18 @@ radioBtn.onclick = () => {
     toast('RADIO OFF — BACK TO PLAYLIST');
     return;
   }
+  if (radioPending) {
+    radioPending = false;
+    renderRadioBtn();
+    toast('RADIO CANCELLED');
+    return;
+  }
   const seed = playlist[current];
   if (!seed) { toast('PLAY SOMETHING TO SEED THE RADIO'); return; }
-  startRadio(seed.id, playing);
+  radioPending = true;             // current song plays out, then its suggestions take over
   renderRadioBtn();
-  toast('RADIO ON — FOLLOWING SUGGESTIONS');
+  warmMeta(seed.id);
+  toast('RADIO ARMED — STARTS AFTER THIS SONG');
 };
 renderRadioBtn();
 
