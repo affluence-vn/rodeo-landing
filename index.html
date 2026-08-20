@@ -16,21 +16,49 @@
     --gridline: rgba(0, 0, 0, .04);
     --hoverline: rgba(0, 0, 0, .06);
     --ghost: rgba(0, 0, 0, .4);
+    --panel-bg: var(--paper);
+    --glow: none;
+    --text-glow: none;
+    --blur: none;
+    --shadow: #000;              /* hard neo-brutalist offset shadow */
+    --fill: var(--ink);          /* solid fill for active/selected things */
+    --fill-text: var(--paper);
+    --seek-text: #fff;
+    --seek-blend: difference;
   }
+  /* dark = smoked translucent plastic lit by a yellow neon tube */
   :root[data-theme="dark"] {
-    --ink: #fff;
-    --paper: #000;
-    --gridline: rgba(255, 255, 255, .07);
-    --hoverline: rgba(255, 255, 255, .12);
-    --ghost: rgba(255, 255, 255, .45);
+    --ink: #ffe200;
+    --paper: #0a0a0a;
+    --gridline: rgba(255, 226, 0, .06);
+    --hoverline: rgba(255, 226, 0, .14);
+    --ghost: rgba(255, 226, 0, .4);
+    --panel-bg: rgba(26, 26, 24, .5);
+    --glow: 0 0 10px rgba(255, 226, 0, .4), 0 0 30px rgba(255, 226, 0, .16);
+    --text-glow: 0 0 7px rgba(255, 226, 0, .55);
+    --blur: blur(12px) saturate(1.3);
+    --shadow: rgba(0, 0, 0, .82);          /* dark shadow, not a yellow slab */
+    --fill: rgba(255, 226, 0, .17);        /* neon tint, keeps the plastic translucent */
+    --fill-text: #ffe200;
+    --seek-text: #ffe200;
+    --seek-blend: normal;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --ink: #fff;
-      --paper: #000;
-      --gridline: rgba(255, 255, 255, .07);
-      --hoverline: rgba(255, 255, 255, .12);
-      --ghost: rgba(255, 255, 255, .45);
+      --ink: #ffe200;
+      --paper: #0a0a0a;
+      --gridline: rgba(255, 226, 0, .06);
+      --hoverline: rgba(255, 226, 0, .14);
+      --ghost: rgba(255, 226, 0, .4);
+      --panel-bg: rgba(26, 26, 24, .5);
+      --glow: 0 0 10px rgba(255, 226, 0, .4), 0 0 30px rgba(255, 226, 0, .16);
+      --text-glow: 0 0 7px rgba(255, 226, 0, .55);
+      --blur: blur(12px) saturate(1.3);
+      --shadow: rgba(0, 0, 0, .82);
+      --fill: rgba(255, 226, 0, .17);
+      --fill-text: #ffe200;
+      --seek-text: #ffe200;
+      --seek-blend: normal;
     }
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -44,6 +72,7 @@
       repeating-linear-gradient(0deg, transparent 0 14px, var(--gridline) 14px 15px),
       repeating-linear-gradient(90deg, transparent 0 14px, var(--gridline) 14px 15px),
       var(--paper);
+    text-shadow: var(--text-glow);
     height: 100dvh;
     display: flex;
     flex-direction: column;
@@ -80,7 +109,7 @@
       padding: 12px 12px 14px;
       gap: 14px;
     }
-    .panel { box-shadow: 6px 6px 0 var(--ink); }
+    .panel { box-shadow: 6px 6px 0 var(--shadow); }
     .artwork-wrap { flex: none; height: 26dvh; min-height: 100px; }
 
     .now { padding: 12px; min-height: 56px; }
@@ -93,15 +122,17 @@
     .tracklist { max-height: none; }
     .tracklist li { padding: 12px 10px; }
 
-    .addbar { box-shadow: 6px 6px 0 var(--ink); }
+    .addbar { box-shadow: 6px 6px 0 var(--shadow); }
     .addbar input { font-size: 16px; padding: 14px 12px; }
     .addbar button { font-size: 10px; padding: 14px 14px; }
   }
 
   .panel {
     border: 5px solid var(--ink);
-    background: var(--paper);
-    box-shadow: 10px 10px 0 var(--ink);
+    background: var(--panel-bg);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    box-shadow: 10px 10px 0 var(--shadow), var(--glow);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -113,7 +144,7 @@
     min-height: 120px;
     overflow: hidden;
     border-bottom: 5px solid var(--ink);
-    background: var(--paper);
+    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -126,7 +157,7 @@
     aspect-ratio: 16 / 9;
     object-fit: cover;
     border: 4px solid var(--ink);
-    box-shadow: 8px 8px 0 var(--ink);
+    box-shadow: 8px 8px 0 var(--shadow), var(--glow);
     background: var(--paper);
   }
   .artwork.empty { visibility: hidden; }
@@ -138,7 +169,7 @@
     aspect-ratio: 1;
     object-fit: contain;
     border: 4px solid var(--ink);
-    box-shadow: 8px 8px 0 var(--ink);
+    box-shadow: 8px 8px 0 var(--shadow);
     background: #fff; /* QR must stay white to scan */
     image-rendering: pixelated;
     cursor: pointer;
@@ -160,14 +191,14 @@
     position: absolute;
     inset: 0;
     width: 0%;
-    background: var(--ink);
+    background: var(--fill);
     pointer-events: none;
   }
   .now-label, .now-title-clip {
     position: relative;
     z-index: 1;
-    color: #fff;
-    mix-blend-mode: difference; /* readable over both the fill and the empty part */
+    color: var(--seek-text);
+    mix-blend-mode: var(--seek-blend); /* light: difference keeps text legible over the fill */
   }
   .now-label { font-size: 8px; margin-bottom: 10px; }
   .now-title-clip { overflow: hidden; white-space: nowrap; }
@@ -190,16 +221,16 @@
     font-family: inherit;
     font-size: 11px;
     padding: 18px 4px;
-    background: var(--paper);
+    background: transparent;
     color: var(--ink);
     border: none;
     border-right: 5px solid var(--ink);
     cursor: pointer;
   }
   .controls button:last-child { border-right: none; }
-  .controls button:hover { background: var(--ink); color: var(--paper); }
+  .controls button:hover { background: var(--fill); color: var(--fill-text); }
   .controls button:active { transform: translate(2px, 2px); }
-  .controls button.toggled { background: var(--ink); color: var(--paper); }
+  .controls button.toggled { background: var(--fill); color: var(--fill-text); }
   .controls button.big { font-size: 15px; }
 
   /* ============ ADD BAR ============ */
@@ -208,8 +239,10 @@
     display: flex;
     gap: 0;
     border: 5px solid var(--ink);
-    background: var(--paper);
-    box-shadow: 10px 10px 0 var(--ink);
+    background: var(--panel-bg);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    box-shadow: 10px 10px 0 var(--shadow), var(--glow);
   }
   .addbar input {
     flex: 1;
@@ -219,7 +252,7 @@
     padding: 16px 14px;
     border: none;
     outline: none;
-    background: var(--paper);
+    background: transparent;
     color: var(--ink);
   }
   .addbar input::placeholder { color: var(--ghost); }
@@ -227,14 +260,14 @@
     font-family: inherit;
     font-size: 11px;
     padding: 16px 22px;
-    background: var(--ink);
-    color: var(--paper);
+    background: var(--fill);
+    color: var(--fill-text);
     border: none;
     border-left: 5px solid var(--ink);
     cursor: pointer;
     white-space: nowrap;
   }
-  .addbar button:hover { background: var(--paper); color: var(--ink); }
+  .addbar button:hover { background: transparent; color: var(--ink); }
 
   /* ============ LISTS ============ */
   .tabs { display: flex; }
@@ -246,12 +279,12 @@
     border: none;
     border-bottom: 5px solid var(--ink);
     border-right: 5px solid var(--ink);
-    background: var(--paper);
+    background: transparent;
     color: var(--ink);
     cursor: pointer;
   }
   .tabs button:last-child { border-right: none; }
-  .tabs button.active { background: var(--ink); color: var(--paper); }
+  .tabs button.active { background: var(--fill); color: var(--fill-text); }
   .tabs .theme-btn { flex: 0 0 64px; font-size: 9px; }
 
   .tracklist {
@@ -274,8 +307,8 @@
   .tracklist li.dead .t, .tracklist li.dead img { opacity: .4; }
   .tracklist li.dead .t b { color: var(--ink); opacity: 1; font-size: 8px; }
   .tracklist li.current {
-    background: var(--ink);
-    color: var(--paper);
+    background: var(--fill);
+    color: var(--fill-text);
   }
   .tracklist li img {
     width: 56px; height: 42px;
@@ -283,7 +316,7 @@
     border: 3px solid var(--ink);
     flex-shrink: 0;
   }
-  .tracklist li.current img { border-color: var(--paper); }
+  .tracklist li.current img { border-color: var(--fill-text); }
   .tracklist li .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .tracklist li .no { width: 24px; flex-shrink: 0; }
   .tracklist li .x {
@@ -296,8 +329,7 @@
     cursor: pointer;
     flex-shrink: 0;
   }
-  .tracklist li .x:hover { background: var(--paper); color: var(--ink); }
-  .tracklist li:not(.current) .x:hover { background: var(--ink); color: var(--paper); }
+  .tracklist li .x:hover { background: var(--fill); color: var(--fill-text); }
   .list-empty {
     padding: 30px 16px;
     font-size: 9px;
@@ -311,10 +343,10 @@
     bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--ink);
-    color: var(--paper);
-    border: 4px solid var(--paper);
-    outline: 4px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    border: 4px solid var(--ink);
+    box-shadow: 6px 6px 0 var(--shadow), var(--glow);
     padding: 14px 20px;
     font-size: 10px;
     display: none;
@@ -353,7 +385,7 @@
       <button id="btn-play" class="big" title="Play/Pause">&gt;</button>
       <button id="btn-next" title="Next">&gt;|</button>
       <button id="btn-shuffle" title="Shuffle">RND</button>
-      <button id="btn-save" title="Save current track">SAVE♥</button>
+      <button id="btn-qr" title="Share as QR code">QR</button>
     </div>
   </section>
 
@@ -361,7 +393,6 @@
   <section class="panel">
     <div class="tabs">
       <button id="tab-playlist" class="active">PLAYLIST</button>
-      <button id="tab-saved">SAVED ♥</button>
       <button id="btn-theme" class="theme-btn" title="Toggle dark mode">DRK</button>
     </div>
     <ul class="tracklist" id="tracklist"></ul>
@@ -371,7 +402,6 @@
   <div class="addbar">
     <input id="add-input" type="text" placeholder="PASTE YOUTUBE URL..." autocomplete="off" spellcheck="false">
     <button id="btn-add">+ ADD</button>
-    <button id="btn-qr" title="Share as QR code">QR</button>
   </div>
 </main>
 
@@ -382,7 +412,6 @@
 <script>
 /* ================= STATE ================= */
 const LS_PLAYLIST = 'rodeo.playlist';
-const LS_SAVED    = 'rodeo.saved';
 const LS_STATE    = 'rodeo.state';
 
 const SEED_VERSION = 2;
@@ -397,11 +426,10 @@ if (load('rodeo.seedv', 0) < SEED_VERSION) {
   persist('rodeo.seedv', SEED_VERSION);
 }
 
-let saved = load(LS_SAVED, []);
 let prefs = load(LS_STATE, { volume: 80, shuffle: false, index: 0 });
 
 /* migrate old letterboxed thumbs (hqdefault is 4:3 with baked bars; mqdefault is clean 16:9) */
-[[playlist, LS_PLAYLIST], [saved, LS_SAVED]].forEach(([list, key]) => {
+[[playlist, LS_PLAYLIST]].forEach(([list, key]) => {
   let touched = false;
   list.forEach(t => {
     if (t.thumb && t.thumb.includes('/hqdefault')) {
@@ -419,7 +447,10 @@ let playing = false;
 let intendedPlaying = false; // user WANTS music (vs. OS pausing us on screen lock)
 const deadIds = new Set();   // videos YouTube refused (removed / private / embed-disabled)
 let errorStreak = 0;         // consecutive dead tracks — guards against an all-dead spin
-let activeTab = 'playlist';
+localStorage.removeItem('rodeo.saved'); // saved-tracks feature removed
+
+/* haptic tick — Android/Chrome honours this; iOS Safari ignores vibrate() */
+function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch {} }
 let player = null;
 let playerReady = false;
 let pendingPlay = false;
@@ -677,15 +708,25 @@ function updateMediaSession() {
     }
     navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
   } catch {}
+  setupMediaSession(); // re-assert: some browsers drop handlers when metadata changes
 }
-if ('mediaSession' in navigator) {
-  try {
-    navigator.mediaSession.setActionHandler('play', togglePlay);
-    navigator.mediaSession.setActionHandler('pause', togglePlay);
-    navigator.mediaSession.setActionHandler('nexttrack', next);
-    navigator.mediaSession.setActionHandler('previoustrack', prev);
-  } catch {}
+function setupMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  const ms = navigator.mediaSession;
+  const set = (action, fn) => { try { ms.setActionHandler(action, fn); } catch {} };
+
+  // explicit play/pause — wiring both to a toggle inverts the command when the OS and page disagree
+  set('play', () => { intendedPlaying = true; if (playerReady) player.playVideo(); });
+  set('pause', () => { intendedPlaying = false; if (playerReady) player.pauseVideo(); });
+  set('nexttrack', () => next());
+  set('previoustrack', () => prev());
+
+  // iOS substitutes ±15s skip buttons for prev/next unless seeking is declared unsupported
+  set('seekbackward', null);
+  set('seekforward', null);
+  set('seekto', null);
 }
+setupMediaSession();
 
 /* ================= ADD FLOW ================= */
 function parseYouTubeId(input) {
@@ -744,10 +785,10 @@ function importYouTubePlaylist(listId, fallbackId) {
       if (fallbackId && !playlist.some(t => t.id === fallbackId)) {
         addTrack(fallbackId); // list failed, add the single video instead
       } else {
-        toast('PLAYLIST IMPORT FAILED');
+        toast('CANT IMPORT — LIST IS PRIVATE OR EMPTY');
         rebuildPlayerPlaylist();
       }
-    }, 10000),
+    }, 8000),
   };
   toast('IMPORTING PLAYLIST…');
   player.cuePlaylist({ listType: 'playlist', list: listId });
@@ -784,28 +825,30 @@ function finishImport() {
 
 function addFromInput() {
   const input = document.getElementById('add-input');
-  const raw = input.value;
+  const raw = input.value.trim();
+  if (!raw) return;
   const listId = parseYouTubeList(raw);
   const id = parseYouTubeId(raw);
-  if (listId) { input.value = ''; importYouTubePlaylist(listId, id); return; }
-  if (!id) { toast('NOT A YOUTUBE URL'); return; }
-  if (playlist.some(t => t.id === id)) { toast('ALREADY IN PLAYLIST'); input.value = ''; return; }
-  input.value = '';
-  addTrack(id);
-}
 
-/* ================= SAVE ================= */
-function saveCurrent() {
-  const t = playlist[current];
-  if (!t) { toast('NOTHING PLAYING'); return; }
-  if (saved.some(s => s.id === t.id)) { toast('ALREADY SAVED'); return; }
-  saved.push({ id: t.id, title: t.title, thumb: t.thumb, savedAt: Date.now() });
-  persist(LS_SAVED, saved);
-  toast('SAVED ♥ ' + short(t.title, 20));
-  renderAll();
-}
+  // A URL carrying a video id means "add this video" — even when it also carries &list=
+  // (copying from YouTube mid-playlist appends a list that is often private and can't be cued).
+  // Whole-playlist import is the pure /playlist?list=... form.
+  if (id) {
+    if (playlist.some(t => t.id === id)) { toast('ALREADY IN PLAYLIST'); input.value = ''; return; }
+    input.value = '';
+    addTrack(id);
+    return;
+  }
 
-function short(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+  if (listId) {
+    if (listId === 'WL' || listId === 'LL') { toast('PRIVATE LIST — CANT IMPORT'); return; }
+    input.value = '';
+    importYouTubePlaylist(listId, null);
+    return;
+  }
+
+  toast('NOT A YOUTUBE URL');
+}
 
 /* ================= RENDER ================= */
 function renderDeck() {
@@ -832,22 +875,19 @@ function renderDeck() {
 function renderList() {
   const ul = document.getElementById('tracklist');
   ul.innerHTML = '';
-  const items = activeTab === 'playlist' ? playlist : saved;
 
-  if (!items.length) {
+  if (!playlist.length) {
     const li = document.createElement('li');
     li.className = 'list-empty';
     li.style.cursor = 'default';
-    li.textContent = activeTab === 'playlist'
-      ? 'NO TRACKS. PASTE A YOUTUBE URL BELOW.'
-      : 'NOTHING SAVED YET. HIT [ SAVE ♥ ] WHILE A TRACK PLAYS.';
+    li.textContent = 'NO TRACKS. PASTE A YOUTUBE URL BELOW.';
     ul.appendChild(li);
     return;
   }
 
-  items.forEach((t, i) => {
+  playlist.forEach((t, i) => {
     const li = document.createElement('li');
-    const isCurrent = activeTab === 'playlist' && i === current;
+    const isCurrent = i === current;
     const isDead = deadIds.has(t.id);
     li.className = (isCurrent ? 'current' : '') + (isDead ? ' dead' : '');
     li.innerHTML = `
@@ -855,30 +895,11 @@ function renderList() {
       <img src="${t.thumb}" alt="" loading="lazy">
       <span class="t">${escapeHtml(t.title)}${isDead ? ' <b>[DEAD]</b>' : ''}</span>
       <button class="x" title="Remove">✕</button>`;
-    li.onclick = () => {
-      if (activeTab === 'playlist') {
-        playIndex(i, true);
-      } else {
-        // play a saved track: add to playlist if missing, then jump to it
-        let idx = playlist.findIndex(p => p.id === t.id);
-        if (idx === -1) {
-          playlist.push({ id: t.id, title: t.title, thumb: t.thumb, addedAt: Date.now() });
-          persist(LS_PLAYLIST, playlist);
-          idx = playlist.length - 1;
-        }
-        playIndex(idx, true);
-      }
-    };
+    li.onclick = () => { buzz(12); playIndex(i, true); };
     li.querySelector('.x').onclick = (e) => {
       e.stopPropagation();
-      if (activeTab === 'playlist') {
-        removeFromPlaylist(i);
-      } else {
-        saved.splice(i, 1);
-        persist(LS_SAVED, saved);
-        toast('REMOVED FROM SAVED');
-        renderAll();
-      }
+      buzz([8, 40, 8]);
+      removeFromPlaylist(i);
     };
     ul.appendChild(li);
   });
@@ -919,17 +940,23 @@ function toast(msg) {
 }
 
 /* ================= WIRING ================= */
-document.getElementById('btn-play').onclick = togglePlay;
-document.getElementById('btn-next').onclick = next;
-document.getElementById('btn-prev').onclick = prev;
-document.getElementById('btn-shuffle').onclick = () => { shuffle = !shuffle; persistPrefs(); renderDeck(); toast(shuffle ? 'SHUFFLE ON' : 'SHUFFLE OFF'); };
-document.getElementById('btn-save').onclick = saveCurrent;
+document.getElementById('btn-play').onclick = () => { buzz(15); togglePlay(); };
+document.getElementById('btn-next').onclick = () => { buzz(12); next(); };
+document.getElementById('btn-prev').onclick = () => { buzz(12); prev(); };
+document.getElementById('btn-shuffle').onclick = () => {
+  buzz(12);
+  shuffle = !shuffle;
+  persistPrefs();
+  renderDeck();
+  toast(shuffle ? 'SHUFFLE ON' : 'SHUFFLE OFF');
+};
 document.getElementById('btn-add').onclick = addFromInput;
 document.getElementById('add-input').addEventListener('keydown', e => { if (e.key === 'Enter') addFromInput(); });
 
 /* ---- QR takes over the artwork frame ---- */
 let qrShown = false;
 document.getElementById('btn-qr').onclick = () => {
+  buzz(12);
   qrShown = !qrShown;
   if (qrShown) {
     syncUrl();
@@ -987,8 +1014,6 @@ setInterval(() => {
   const d = player.getDuration() || 0;
   if (d > 0) progressEl.style.width = (player.getCurrentTime() / d * 100) + '%';
 }, 500);
-document.getElementById('tab-playlist').onclick = () => switchTab('playlist');
-document.getElementById('tab-saved').onclick = () => switchTab('saved');
 
 /* ---- dark mode ---- */
 const LS_THEME = 'rodeo.theme';
@@ -1003,16 +1028,11 @@ function applyTheme(pref) {
 }
 applyTheme(localStorage.getItem(LS_THEME));
 document.getElementById('btn-theme').onclick = () => {
+  buzz(12);
   const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
   localStorage.setItem(LS_THEME, next);
   applyTheme(next);
 };
-function switchTab(tab) {
-  activeTab = tab;
-  document.getElementById('tab-playlist').classList.toggle('active', tab === 'playlist');
-  document.getElementById('tab-saved').classList.toggle('active', tab === 'saved');
-  renderList();
-}
 
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
