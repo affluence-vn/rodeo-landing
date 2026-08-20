@@ -419,7 +419,6 @@
 
 <div id="yt-holder">
   <div id="yt-player"></div>
-  <div id="yt-probe"></div><!-- resolves Mix lists without disturbing playback -->
 </div>
 
 <script>
@@ -439,7 +438,7 @@ if (load('rodeo.seedv', 0) < SEED_VERSION) {
   persist('rodeo.seedv', SEED_VERSION);
 }
 
-let prefs = load(LS_STATE, { volume: 80, shuffle: false, index: 0, autoRadio: false });
+let prefs = load(LS_STATE, { volume: 80, shuffle: false, index: 0 });
 
 /* migrate old letterboxed thumbs (hqdefault is 4:3 with baked bars; mqdefault is clean 16:9) */
 [[playlist, LS_PLAYLIST]].forEach(([list, key]) => {
@@ -455,7 +454,6 @@ let prefs = load(LS_STATE, { volume: 80, shuffle: false, index: 0, autoRadio: fa
 
 let current = Math.min(prefs.index || 0, Math.max(playlist.length - 1, 0));
 let shuffle = !!prefs.shuffle;
-let autoRadio = !!prefs.autoRadio;
 let volume  = typeof prefs.volume === 'number' ? prefs.volume : 80;
 let playing = false;
 let intendedPlaying = false; // user WANTS music (vs. OS pausing us on screen lock)
@@ -489,7 +487,7 @@ if (bootV && /^[\w-]{11}$/.test(bootV)) {
 
 function shareUrl() {
   const u = new URL(location.origin + location.pathname);
-  const t = playlist[current];
+  const t = displayTrack();
   if (t) {
     u.searchParams.set('v', t.id);
     const secs = (playerReady && player.getCurrentTime) ? Math.floor(player.getCurrentTime()) : 0;
@@ -506,7 +504,7 @@ function load(key, fallback) {
   catch { return fallback; }
 }
 function persist(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
-function persistPrefs() { persist(LS_STATE, { volume, shuffle, index: current, autoRadio }); }
+function persistPrefs() { persist(LS_STATE, { volume, shuffle, index: current }); }
 
 /* ================= YOUTUBE ================= */
 const tag = document.createElement('script');
@@ -522,7 +520,6 @@ function onYouTubeIframeAPIReady() {
     events: {
       onReady: () => {
         playerReady = true;
-        buildRadioProbe();
         player.setVolume(volume);
         if (playlist.length) {
           if (pendingPlay) { pendingPlay = false; player.loadPlaylist(trackIds(), current, initialSeek); }
@@ -560,84 +557,58 @@ function onYouTubeIframeAPIReady() {
   });
 }
 
-/* ---- radio probe: a second, silent player used only to resolve Mix lists ----
-   Cueing a list replaces a player's queue and stops whatever it was playing, so the
-   main player must never be used for lookups while music is running. */
-let radioProbe = null;
-let radioProbeReady = false;
-let onProbeCued = null;
+/* ---- radio mode ----
+   YouTube auto-generates a station for any video at list id RD<videoId>. Handing that list
+   to the player lets the IFRAME advance through the suggestions itself, which is what keeps
+   playing while the page is backgrounded. The user's playlist is never modified: it stays in
+   localStorage untouched and is restored the moment radio is switched off. */
+let radioActive = false;
+let radioTrack = null;   // what the station is currently playing (never added to `playlist`)
 
-function buildRadioProbe() {
-  radioProbe = new YT.Player('yt-probe', {
-    width: 200, height: 120,
-    playerVars: { autoplay: 0, controls: 0, playsinline: 1 },
-    events: {
-      onReady: () => { radioProbeReady = true; radioProbe.mute(); },
-      onStateChange: (e) => {
-        if (e.data === YT.PlayerState.CUED && onProbeCued) onProbeCued();
-      },
-      onError: () => { if (onProbeCued) onProbeCued(); },
-    },
-  });
+function startRadio(seedId, autostart) {
+  if (!playerReady || !seedId) return;
+  radioActive = true;
+  radioTrack = null;
+  setProgress(0);
+  const list = { listType: 'playlist', list: 'RD' + seedId };
+  if (autostart) { intendedPlaying = true; player.loadPlaylist(list); }
+  else player.cuePlaylist(list);
+  renderAll();
 }
 
-// YouTube auto-generates a "Mix" radio station for any video under list id RD<videoId>
-function fetchMix(videoId) {
-  return new Promise(resolve => {
-    if (!radioProbeReady) { resolve([]); return; }
-    let settled = false;
-    const finish = (ids) => {
-      if (settled) return;
-      settled = true;
-      onProbeCued = null;
-      clearTimeout(timeout);
-      resolve(ids);
-    };
-    const timeout = setTimeout(() => finish([]), 8000);
-    onProbeCued = () => finish(radioProbe.getPlaylist() || []);
-    try { radioProbe.cuePlaylist({ listType: 'playlist', list: 'RD' + videoId }); }
-    catch { finish([]); }
-  });
+// hand playback back to the user's own list, exactly where it was
+function stopRadio(autostart) {
+  if (!radioActive) return;
+  radioActive = false;
+  radioTrack = null;
+  setProgress(0);
+  // a player holding a listType:'playlist' Mix ignores cuePlaylist(array) until the
+  // list association is cleared, so the station would keep playing without this stop
+  if (playerReady) player.stopVideo();
+  if (playerReady && playlist.length) playIndex(current, autostart);
+  else renderAll();
 }
 
-const RADIO_CAP = 200;    // stop growing here; the queue still loops, so playback never stops
-const RADIO_RUNWAY = 3;   // top up once this few tracks remain ahead
-let radioBusy = false;
-
-async function maybeExtendRadio() {
-  if (!autoRadio || radioBusy || !playerReady || !playlist.length) return;
-  if (playlist.length - current > RADIO_RUNWAY) return;
-  if (playlist.length >= RADIO_CAP) return;
-
-  radioBusy = true;
-  try {
-    const seed = playlist[current];
-    const ids = await fetchMix(seed.id);
-    const fresh = ids.filter(id => !playlist.some(t => t.id === id)).slice(0, 100);
-    if (fresh.length) {
-      fresh.forEach(id => playlist.push({
-        id, title: 'TRACK ' + id,
-        thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`, addedAt: Date.now(),
-      }));
-      persist(LS_PLAYLIST, playlist);
-      // reloading the queue rebuffers the current track, so resume it at the exact position
-      const at = Math.floor((player.getCurrentTime && player.getCurrentTime()) || 0);
-      if (playing) player.loadPlaylist(trackIds(), current, at);
-      else player.cuePlaylist(trackIds(), current);
-      player.setLoop(true);
-      fresh.slice(0, 20).forEach(id => fetchTitle(playlist.find(t => t.id === id)));
-      toast('RADIO +' + fresh.length + ' TRACKS');
-      renderAll();
-    }
-  } catch {}
-  radioBusy = false;
-}
+// the track the UI should display: the station's song while radio runs, else the playlist's
+function displayTrack() { return radioActive ? radioTrack : playlist[current]; }
 
 /* the iframe advances the playlist by itself (survives background) — keep UI in step */
 function syncFromPlayer() {
   if (!player || !player.getVideoData) return;
   const data = player.getVideoData();
   if (!data || !data.video_id) return;
+  if (radioActive) {
+    const changed = !radioTrack || radioTrack.id !== data.video_id;
+    radioTrack = {
+      id: data.video_id,
+      title: data.title || 'RADIO TRACK',
+      thumb: `https://i.ytimg.com/vi/${data.video_id}/mqdefault.jpg`,
+    };
+    if (changed) { setProgress(0); renderAll(); }
+    updateMediaSession();
+    syncUrl();
+    return;
+  }
   const idx = playlist.findIndex(t => t.id === data.video_id);
   if (idx !== -1) {
     const t = playlist[idx];
@@ -650,7 +621,7 @@ function syncFromPlayer() {
       changed = true;
     }
     persistPrefs();
-    if (changed) { renderAll(); maybeExtendRadio(); }
+    if (changed) renderAll();
   }
   updateMediaSession();
   syncUrl();
@@ -743,7 +714,9 @@ function scheduleBackgroundResume() {
 function livePlaylist() { return playlist.filter(t => !deadIds.has(t.id)); }
 
 function next() {
-  if (!playlist.length || !playerReady) return;
+  if (!playerReady) return;
+  if (radioActive) { intendedPlaying = true; player.nextVideo(); setTimeout(syncFromPlayer, 600); return; }
+  if (!playlist.length) return;
   intendedPlaying = true;
   errorStreak = 0; // fresh user action gets a full sweep
   if (shuffle && livePlaylist().length > 1) {
@@ -755,7 +728,9 @@ function next() {
   }
 }
 function prev() {
-  if (!playerReady || !playlist.length) return;
+  if (!playerReady) return;
+  if (radioActive) { intendedPlaying = true; player.previousVideo(); setTimeout(syncFromPlayer, 600); return; }
+  if (!playlist.length) return;
   intendedPlaying = true;
   errorStreak = 0;
   let n = current;
@@ -784,7 +759,7 @@ function setVolume(v) {
 /* ================= LOCK SCREEN (MEDIA SESSION) ================= */
 function updateMediaSession() {
   if (!('mediaSession' in navigator)) return;
-  const t = playlist[current];
+  const t = displayTrack();
   try {
     if (t) {
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -940,7 +915,7 @@ function addFromInput() {
 
 /* ================= RENDER ================= */
 function renderDeck() {
-  const t = playlist[current];
+  const t = displayTrack();
   const art = document.getElementById('artwork');
   const title = document.getElementById('now-title');
   const playBtn = document.getElementById('btn-play');
@@ -975,7 +950,7 @@ function renderList() {
 
   playlist.forEach((t, i) => {
     const li = document.createElement('li');
-    const isCurrent = i === current;
+    const isCurrent = !radioActive && i === current;   // radio plays off-list, so nothing is 'current'
     const isDead = deadIds.has(t.id);
     li.className = (isCurrent ? 'current' : '') + (isDead ? ' dead' : '');
     li.innerHTML = `
@@ -983,7 +958,7 @@ function renderList() {
       <img src="${t.thumb}" alt="" loading="lazy">
       <span class="t">${escapeHtml(t.title)}${isDead ? ' <b>[DEAD]</b>' : ''}</span>
       <button class="x" title="Remove">✕</button>`;
-    li.onclick = () => { buzz(12); playIndex(i, true); };
+    li.onclick = () => { buzz(12); radioActive = false; radioTrack = null; renderRadioBtn(); playIndex(i, true); };
     li.querySelector('.x').onclick = (e) => {
       e.stopPropagation();
       buzz([8, 40, 8]);
@@ -1111,20 +1086,21 @@ setInterval(() => {
 
 /* ---- true radio: keep the queue topped up with YouTube's suggested tracks ---- */
 const radioBtn = document.getElementById('btn-radio');
-function renderRadioBtn() { radioBtn.classList.toggle('on', autoRadio); }
+function renderRadioBtn() { radioBtn.classList.toggle('on', radioActive); }
 
 radioBtn.onclick = () => {
   buzz(12);
-  autoRadio = !autoRadio;
-  persistPrefs();
-  renderRadioBtn();
-  if (autoRadio) {
-    if (!playlist.length) { toast('RADIO ON — ADD A TRACK TO SEED IT'); return; }
-    toast('RADIO ON — NEVER ENDS');
-    maybeExtendRadio();
-  } else {
-    toast('RADIO OFF');
+  if (radioActive) {
+    stopRadio(playing);
+    renderRadioBtn();
+    toast('RADIO OFF — BACK TO PLAYLIST');
+    return;
   }
+  const seed = playlist[current];
+  if (!seed) { toast('PLAY SOMETHING TO SEED THE RADIO'); return; }
+  startRadio(seed.id, playing);
+  renderRadioBtn();
+  toast('RADIO ON — FOLLOWING SUGGESTIONS');
 };
 renderRadioBtn();
 
