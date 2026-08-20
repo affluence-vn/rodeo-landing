@@ -759,6 +759,19 @@ function stopRadio(autostart) {
 // the track the UI should display: the station's song while radio runs, else the playlist's
 function displayTrack() { return radioActive ? radioTrack : playlist[current]; }
 
+/* Picking a track while radio is on plays that track and keeps radio armed, so the station
+   resumes from whatever you chose. Radio is a mode, not a property of one song. */
+function playTrackKeepingRadio(i) {
+  const radioWasOn = radioActive || radioPending;
+  // a player holding a Mix ignores cuePlaylist(array) until the list association is cleared
+  if (radioActive && playerReady) player.stopVideo();
+  radioActive = false;
+  radioTrack = null;
+  radioPending = radioWasOn;
+  renderRadioBtn();
+  playIndex(i, true);
+}
+
 /* the iframe advances the playlist by itself (survives background) — keep UI in step */
 function syncFromPlayer() {
   if (!player || !player.getVideoData) return;
@@ -1151,7 +1164,7 @@ function renderList() {
       <img src="${t.thumb}" alt="" loading="lazy">
       <span class="t">${escapeHtml(t.title)}${isDead ? ' <b>[DEAD]</b>' : ''}</span>
       <button class="x" title="Remove">✕</button>`;
-    li.onclick = () => { buzz(12); radioActive = false; radioTrack = null; renderRadioBtn(); playIndex(i, true); };
+    li.onclick = () => { buzz(12); playTrackKeepingRadio(i); };
     li.querySelector('.x').onclick = (e) => {
       e.stopPropagation();
       buzz([8, 40, 8]);
