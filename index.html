@@ -396,7 +396,7 @@
       <button id="btn-play" class="big" title="Play/Pause">&gt;</button>
       <button id="btn-next" title="Next">&gt;|</button>
       <button id="btn-shuffle" title="Shuffle">RND</button>
-      <button id="btn-qr" title="Share as QR code">QR</button>
+      <button id="btn-radio" title="Radio: follow suggestions after this song">RDO</button>
     </div>
   </section>
 
@@ -404,7 +404,7 @@
   <section class="panel">
     <div class="tabs">
       <button id="tab-playlist" class="active">PLAYLIST</button>
-      <button id="btn-radio" class="mini-btn" title="Endless radio from the current track">RDO</button>
+      <button id="btn-qr" class="mini-btn" title="Share as QR code">QR</button>
       <button id="btn-clear" class="mini-btn" title="Clear playlist">CLR</button>
       <button id="btn-theme" class="mini-btn" title="Toggle dark mode">DRK</button>
     </div>
@@ -1172,7 +1172,7 @@ setInterval(() => {
 
 /* ---- true radio: keep the queue topped up with YouTube's suggested tracks ---- */
 const radioBtn = document.getElementById('btn-radio');
-function renderRadioBtn() { radioBtn.classList.toggle('on', radioActive || radioPending); }
+function renderRadioBtn() { radioBtn.classList.toggle('toggled', radioActive || radioPending); }
 
 radioBtn.onclick = () => {
   buzz(12);
