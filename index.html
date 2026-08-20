@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#000000">
+<title>RODEO.VN — NONSTOP RADIO</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📻</text></svg>'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #000;
+    --paper: #fff;
+    --gridline: rgba(0, 0, 0, .04);
+    --hoverline: rgba(0, 0, 0, .06);
+    --ghost: rgba(0, 0, 0, .4);
+  }
+  :root[data-theme="dark"] {
+    --ink: #fff;
+    --paper: #000;
+    --gridline: rgba(255, 255, 255, .07);
+    --hoverline: rgba(255, 255, 255, .12);
+    --ghost: rgba(255, 255, 255, .45);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #fff;
+      --paper: #000;
+      --gridline: rgba(255, 255, 255, .07);
+      --hoverline: rgba(255, 255, 255, .12);
+      --ghost: rgba(255, 255, 255, .45);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { background: var(--paper); }
+
+  body {
+    font-family: 'Press Start 2P', monospace;
+    color: var(--ink);
+    background:
+      repeating-linear-gradient(0deg, transparent 0 14px, var(--gridline) 14px 15px),
+      repeating-linear-gradient(90deg, transparent 0 14px, var(--gridline) 14px 15px),
+      var(--paper);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    -webkit-font-smoothing: none;
+    image-rendering: pixelated;
+  }
+
+  ::selection { background: var(--ink); color: var(--paper); }
+
+  @keyframes ticker { to { transform: translateX(-100%); } }
+
+  /* ============ LAYOUT ============ */
+  main {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 22px 20px 24px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 22px 28px;
+  }
+  main > * { min-width: 0; min-height: 0; }
+
+  /* ============ MOBILE ============ */
+  @media (max-width: 600px) {
+
+    main {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      padding: 12px 12px 14px;
+      gap: 14px;
+    }
+    .panel { box-shadow: 6px 6px 0 var(--ink); }
+    .artwork-wrap { flex: none; height: 26dvh; min-height: 100px; }
+
+    .now { padding: 12px; min-height: 56px; }
+    .now-title { font-size: 11px; }
+
+    .controls button { padding: 20px 2px; font-size: 9px; }
+    .controls button.big { font-size: 14px; }
+
+    .tabs button { font-size: 10px; padding: 12px 6px; }
+    .tracklist { max-height: none; }
+    .tracklist li { padding: 12px 10px; }
+
+    .addbar { box-shadow: 6px 6px 0 var(--ink); }
+    .addbar input { font-size: 16px; padding: 14px 12px; }
+    .addbar button { font-size: 10px; padding: 14px 14px; }
+  }
+
+  .panel {
+    border: 5px solid var(--ink);
+    background: var(--paper);
+    box-shadow: 10px 10px 0 var(--ink);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  /* ============ DECK ============ */
+  .artwork-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 120px;
+    overflow: hidden;
+    border-bottom: 5px solid var(--ink);
+    background: var(--paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .artwork {
+    display: block;
+    height: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border: 4px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+    background: var(--paper);
+  }
+  .artwork.empty { visibility: hidden; }
+
+  .qr-art {
+    display: none;
+    height: 100%;
+    max-width: 100%;
+    aspect-ratio: 1;
+    object-fit: contain;
+    border: 4px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+    background: #fff; /* QR must stay white to scan */
+    image-rendering: pixelated;
+    cursor: pointer;
+  }
+  .artwork-wrap.show-qr .artwork { display: none; }
+  .artwork-wrap.show-qr .qr-art { display: block; }
+
+  /* TRACK bar doubles as the seek bar */
+  .now {
+    position: relative;
+    overflow: hidden;
+    padding: 16px 14px;
+    border-bottom: 5px solid var(--ink);
+    min-height: 64px;
+    cursor: pointer;
+    touch-action: none;
+  }
+  .now .progress {
+    position: absolute;
+    inset: 0;
+    width: 0%;
+    background: var(--ink);
+    pointer-events: none;
+  }
+  .now-label, .now-title-clip {
+    position: relative;
+    z-index: 1;
+    color: #fff;
+    mix-blend-mode: difference; /* readable over both the fill and the empty part */
+  }
+  .now-label { font-size: 8px; margin-bottom: 10px; }
+  .now-title-clip { overflow: hidden; white-space: nowrap; }
+  .now-title {
+    display: inline-block;
+    font-size: 13px;
+    line-height: 1.5;
+    animation: ticker 12s linear infinite;
+    padding-left: 0;
+  }
+  .now-title.scroll { padding-left: 100%; }
+  .now-title:not(.scroll) { animation: none; }
+
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+  }
+  .controls button {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 18px 4px;
+    background: var(--paper);
+    color: var(--ink);
+    border: none;
+    border-right: 5px solid var(--ink);
+    cursor: pointer;
+  }
+  .controls button:last-child { border-right: none; }
+  .controls button:hover { background: var(--ink); color: var(--paper); }
+  .controls button:active { transform: translate(2px, 2px); }
+  .controls button.toggled { background: var(--ink); color: var(--paper); }
+  .controls button.big { font-size: 15px; }
+
+  /* ============ ADD BAR ============ */
+  .addbar {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0;
+    border: 5px solid var(--ink);
+    background: var(--paper);
+    box-shadow: 10px 10px 0 var(--ink);
+  }
+  .addbar input {
+    flex: 1;
+    min-width: 0;
+    font-family: inherit;
+    font-size: 10px;
+    padding: 16px 14px;
+    border: none;
+    outline: none;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .addbar input::placeholder { color: var(--ghost); }
+  .addbar button {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 16px 22px;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-left: 5px solid var(--ink);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .addbar button:hover { background: var(--paper); color: var(--ink); }
+
+  /* ============ LISTS ============ */
+  .tabs { display: flex; }
+  .tabs button {
+    flex: 1;
+    font-family: inherit;
+    font-size: 11px;
+    padding: 14px 8px;
+    border: none;
+    border-bottom: 5px solid var(--ink);
+    border-right: 5px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .tabs button:last-child { border-right: none; }
+  .tabs button.active { background: var(--ink); color: var(--paper); }
+  .tabs .theme-btn { flex: 0 0 64px; font-size: 9px; }
+
+  .tracklist {
+    list-style: none;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .tracklist li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 12px;
+    border-bottom: 3px solid var(--ink);
+    cursor: pointer;
+    font-size: 9px;
+    line-height: 1.6;
+  }
+  .tracklist li:hover { background: var(--hoverline); }
+  .tracklist li.dead .t, .tracklist li.dead img { opacity: .4; }
+  .tracklist li.dead .t b { color: var(--ink); opacity: 1; font-size: 8px; }
+  .tracklist li.current {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .tracklist li img {
+    width: 56px; height: 42px;
+    object-fit: cover;
+    border: 3px solid var(--ink);
+    flex-shrink: 0;
+  }
+  .tracklist li.current img { border-color: var(--paper); }
+  .tracklist li .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .tracklist li .no { width: 24px; flex-shrink: 0; }
+  .tracklist li .x {
+    font-family: inherit;
+    font-size: 10px;
+    background: none;
+    border: 3px solid currentColor;
+    color: inherit;
+    width: 28px; height: 28px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .tracklist li .x:hover { background: var(--paper); color: var(--ink); }
+  .tracklist li:not(.current) .x:hover { background: var(--ink); color: var(--paper); }
+  .list-empty {
+    padding: 30px 16px;
+    font-size: 9px;
+    line-height: 2;
+    text-align: center;
+  }
+
+  /* ============ TOAST ============ */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: var(--paper);
+    border: 4px solid var(--paper);
+    outline: 4px solid var(--ink);
+    padding: 14px 20px;
+    font-size: 10px;
+    display: none;
+    z-index: 60;
+  }
+  .toast.show { display: block; animation: pop .15s steps(2); }
+  @keyframes pop { from { transform: translateX(-50%) scale(.8); } }
+
+  /* hidden youtube player — kept tiny so YouTube's ABR serves 144p (audio stream is separate, stays ~128kbps) */
+  #yt-holder {
+    position: fixed;
+    left: -9999px;
+    top: 0;
+    width: 256px;
+    height: 144px;
+  }
+
+</style>
+</head>
+<body>
+
+<main>
+  <!-- DECK -->
+  <section class="panel deck">
+    <div class="artwork-wrap" id="artwork-wrap">
+      <img class="artwork empty" id="artwork" alt="thumbnail">
+      <img class="qr-art" id="qr-art" alt="QR code — tap to copy link">
+    </div>
+    <div class="now" id="now-seek" title="Click to seek">
+      <div class="progress" id="progress"></div>
+      <div class="now-label">TRACK:</div>
+      <div class="now-title-clip"><span class="now-title" id="now-title">NOTHING YET — PRESS PLAY</span></div>
+    </div>
+    <div class="controls">
+      <button id="btn-prev" title="Previous">|&lt;</button>
+      <button id="btn-play" class="big" title="Play/Pause">&gt;</button>
+      <button id="btn-next" title="Next">&gt;|</button>
+      <button id="btn-shuffle" title="Shuffle">RND</button>
+      <button id="btn-save" title="Save current track">SAVE♥</button>
+    </div>
+  </section>
+
+  <!-- LISTS -->
+  <section class="panel">
+    <div class="tabs">
+      <button id="tab-playlist" class="active">PLAYLIST</button>
+      <button id="tab-saved">SAVED ♥</button>
+      <button id="btn-theme" class="theme-btn" title="Toggle dark mode">DRK</button>
+    </div>
+    <ul class="tracklist" id="tracklist"></ul>
+  </section>
+
+  <!-- ADD BAR -->
+  <div class="addbar">
+    <input id="add-input" type="text" placeholder="PASTE YOUTUBE URL..." autocomplete="off" spellcheck="false">
+    <button id="btn-add">+ ADD</button>
+    <button id="btn-qr" title="Share as QR code">QR</button>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<div id="yt-holder"><div id="yt-player"></div></div>
+
+<script>
+/* ================= STATE ================= */
+const LS_PLAYLIST = 'rodeo.playlist';
+const LS_SAVED    = 'rodeo.saved';
+const LS_STATE    = 'rodeo.state';
+
+const SEED_VERSION = 2;
+const SEED = ['mFZ7Rcx80X4', 'tO5eb4VPl0Q', 'jYYlMqTErHI', 'QUH-rWmb5y8', '2F6B9EibJjw']
+  .map(id => ({ id, title: 'TRACK ' + id, thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg` }));
+
+let playlist = load(LS_PLAYLIST, null);
+if (!Array.isArray(playlist)) { playlist = SEED.map(s => ({ ...s })); persist(LS_PLAYLIST, playlist); }
+if (load('rodeo.seedv', 0) < SEED_VERSION) {
+  SEED.forEach(s => { if (!playlist.some(t => t.id === s.id)) playlist.push({ ...s }); });
+  persist(LS_PLAYLIST, playlist);
+  persist('rodeo.seedv', SEED_VERSION);
+}
+
+let saved = load(LS_SAVED, []);
+let prefs = load(LS_STATE, { volume: 80, shuffle: false, index: 0 });
+
+/* migrate old letterboxed thumbs (hqdefault is 4:3 with baked bars; mqdefault is clean 16:9) */
+[[playlist, LS_PLAYLIST], [saved, LS_SAVED]].forEach(([list, key]) => {
+  let touched = false;
+  list.forEach(t => {
+    if (t.thumb && t.thumb.includes('/hqdefault')) {
+      t.thumb = t.thumb.replace('/hqdefault', '/mqdefault');
+      touched = true;
+    }
+  });
+  if (touched) persist(key, list);
+});
+
+let current = Math.min(prefs.index || 0, Math.max(playlist.length - 1, 0));
+let shuffle = !!prefs.shuffle;
+let volume  = typeof prefs.volume === 'number' ? prefs.volume : 80;
+let playing = false;
+let intendedPlaying = false; // user WANTS music (vs. OS pausing us on screen lock)
+const deadIds = new Set();   // videos YouTube refused (removed / private / embed-disabled)
+let errorStreak = 0;         // consecutive dead tracks — guards against an all-dead spin
+let activeTab = 'playlist';
+let player = null;
+let playerReady = false;
+let pendingPlay = false;
+
+/* ---- state shared via URL: ?v=<video>&t=<seconds>&vol=<0-100> ---- */
+const bootParams = new URLSearchParams(location.search);
+let initialSeek = Math.max(0, parseInt(bootParams.get('t') || '0', 10) || 0);
+const bootVol = parseInt(bootParams.get('vol') || '', 10);
+if (!isNaN(bootVol)) volume = Math.max(0, Math.min(100, bootVol));
+const bootV = bootParams.get('v');
+if (bootV && /^[\w-]{11}$/.test(bootV)) {
+  let idx = playlist.findIndex(t => t.id === bootV);
+  if (idx === -1) {
+    playlist.push({ id: bootV, title: 'TRACK ' + bootV, thumb: `https://i.ytimg.com/vi/${bootV}/mqdefault.jpg`, addedAt: Date.now() });
+    persist(LS_PLAYLIST, playlist);
+    idx = playlist.length - 1;
+  }
+  current = idx;
+} else {
+  initialSeek = 0; // t only applies together with v
+}
+
+function shareUrl() {
+  const u = new URL(location.origin + location.pathname);
+  const t = playlist[current];
+  if (t) {
+    u.searchParams.set('v', t.id);
+    const secs = (playerReady && player.getCurrentTime) ? Math.floor(player.getCurrentTime()) : 0;
+    if (secs > 0) u.searchParams.set('t', secs);
+  }
+  u.searchParams.set('vol', volume);
+  return u.toString();
+}
+function syncUrl() { try { history.replaceState(null, '', shareUrl()); } catch {} }
+setInterval(() => { if (playing) syncUrl(); }, 5000);
+
+function load(key, fallback) {
+  try { const v = JSON.parse(localStorage.getItem(key)); return v === null ? fallback : v; }
+  catch { return fallback; }
+}
+function persist(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+function persistPrefs() { persist(LS_STATE, { volume, shuffle, index: current }); }
+
+/* ================= YOUTUBE ================= */
+const tag = document.createElement('script');
+tag.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(tag);
+
+function trackIds() { return playlist.map(t => t.id); }
+
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player('yt-player', {
+    width: 256, height: 144,
+    playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1, rel: 0, vq: 'small' },
+    events: {
+      onReady: () => {
+        playerReady = true;
+        player.setVolume(volume);
+        if (playlist.length) {
+          if (pendingPlay) { pendingPlay = false; player.loadPlaylist(trackIds(), current, initialSeek); }
+          else player.cuePlaylist(trackIds(), current, initialSeek);
+          player.setLoop(true);
+        }
+      },
+      onStateChange: (e) => {
+        if (e.data === YT.PlayerState.PLAYING) {
+          playing = true;
+          errorStreak = 0; // a track actually played — reset dead-sweep counter
+          player.setLoop(true);
+          syncFromPlayer();
+        }
+        else if (e.data === YT.PlayerState.CUED) {
+          if (importPending) { finishImport(); return; }
+          syncFromPlayer();
+        }
+        else if (e.data === YT.PlayerState.PAUSED) {
+          playing = false;
+          // screen lock / backgrounding paused us but the user wants music: fight back
+          if (document.hidden && intendedPlaying) {
+            player.playVideo();
+            scheduleBackgroundResume();
+          }
+        }
+        else if (e.data === YT.PlayerState.ENDED) { skipDead(false); return; } // loop normally handles this; fallback
+        renderDeck();
+      },
+      onError: (e) => {
+        if (importPending) return; // import timeout handles list failures
+        handleDeadTrack(e && e.data);
+      },
+    },
+  });
+}
+
+/* the iframe advances the playlist by itself (survives background) — keep UI in step */
+function syncFromPlayer() {
+  if (!player || !player.getVideoData) return;
+  const data = player.getVideoData();
+  if (!data || !data.video_id) return;
+  const idx = playlist.findIndex(t => t.id === data.video_id);
+  if (idx !== -1) {
+    const t = playlist[idx];
+    let changed = idx !== current;
+    current = idx;
+    if (changed) document.getElementById('progress').style.width = '0%';
+    if (data.title && t.title !== data.title) {
+      t.title = data.title;
+      persist(LS_PLAYLIST, playlist);
+      changed = true;
+    }
+    persistPrefs();
+    if (changed) renderAll();
+  }
+  updateMediaSession();
+  syncUrl();
+}
+
+/* ================= PLAYBACK ================= */
+function queueMatches() {
+  const q = player.getPlaylist() || [];
+  const ids = trackIds();
+  return q.length === ids.length && q.every((id, i) => id === ids[i]);
+}
+
+function playIndex(i, autostart) {
+  if (!playlist.length) { toast('PLAYLIST EMPTY'); return; }
+  current = ((i % playlist.length) + playlist.length) % playlist.length;
+  persistPrefs();
+  document.getElementById('progress').style.width = '0%';
+  if (autostart) intendedPlaying = true;
+  if (playerReady) {
+    if (autostart && queueMatches()) {
+      player.playVideoAt(current); // instant start, queue already loaded
+    } else {
+      if (autostart) player.loadPlaylist(trackIds(), current);
+      else player.cuePlaylist(trackIds(), current);
+      player.setLoop(true);
+    }
+  } else if (autostart) {
+    pendingPlay = true;
+  }
+  fetchTitle(playlist[current]);
+  renderAll();
+}
+
+function togglePlay() {
+  if (!playlist.length) { toast('PLAYLIST EMPTY'); return; }
+  if (!playerReady) { pendingPlay = true; intendedPlaying = true; return; }
+  if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+    intendedPlaying = false;
+    player.pauseVideo();
+  } else {
+    intendedPlaying = true;
+    player.playVideo();
+  }
+}
+
+/* ---- dead / unplayable tracks ---- */
+// YouTube error codes: 2 bad param, 5 HTML5, 100 removed/private, 101/150 embedding disabled
+function handleDeadTrack(code) {
+  const bad = (player.getVideoData && player.getVideoData().video_id) || (playlist[current] && playlist[current].id);
+  if (bad) { deadIds.add(bad); renderList(); }
+  errorStreak++;
+  if (errorStreak > playlist.length) { // swept the whole list, nothing plays
+    errorStreak = 0;
+    playing = false;
+    intendedPlaying = false;
+    toast('NO PLAYABLE TRACKS LEFT');
+    renderDeck();
+    return;
+  }
+  toast('TRACK UNAVAILABLE — SKIPPING');
+  setTimeout(() => skipDead(true), 500);
+}
+
+// advance to the next track that isn't known-dead
+function skipDead(autostart) {
+  if (!playerReady || !playlist.length) return;
+  if (deadIds.size >= playlist.length) { // everything is dead
+    playing = false; intendedPlaying = false;
+    toast('NO PLAYABLE TRACKS LEFT');
+    renderDeck();
+    return;
+  }
+  let n = current;
+  for (let i = 0; i < playlist.length; i++) {
+    n = (n + 1) % playlist.length;
+    if (!deadIds.has(playlist[n].id)) break;
+  }
+  playIndex(n, autostart);
+}
+
+function scheduleBackgroundResume() {
+  [300, 1200, 3000].forEach(ms => setTimeout(() => {
+    if (document.hidden && intendedPlaying && playerReady &&
+        player.getPlayerState() !== YT.PlayerState.PLAYING) {
+      player.playVideo();
+    }
+  }, ms));
+}
+
+function livePlaylist() { return playlist.filter(t => !deadIds.has(t.id)); }
+
+function next() {
+  if (!playlist.length || !playerReady) return;
+  intendedPlaying = true;
+  errorStreak = 0; // fresh user action gets a full sweep
+  if (shuffle && livePlaylist().length > 1) {
+    let n; do { n = Math.floor(Math.random() * playlist.length); }
+    while (n === current || deadIds.has(playlist[n].id));
+    playIndex(n, true);
+  } else {
+    skipDead(true); // walk forward past any dead tracks
+  }
+}
+function prev() {
+  if (!playerReady || !playlist.length) return;
+  intendedPlaying = true;
+  errorStreak = 0;
+  let n = current;
+  for (let i = 0; i < playlist.length; i++) {
+    n = (n - 1 + playlist.length) % playlist.length;
+    if (!deadIds.has(playlist[n].id)) break;
+  }
+  playIndex(n, true);
+}
+
+/* reload the iframe's queue after playlist edits, keeping position */
+function rebuildPlayerPlaylist() {
+  if (!playerReady || !playlist.length) return;
+  const t0 = (playing && player.getCurrentTime) ? Math.floor(player.getCurrentTime()) : 0;
+  if (playing) player.loadPlaylist(trackIds(), current, t0);
+  else player.cuePlaylist(trackIds(), current);
+  player.setLoop(true);
+}
+
+function setVolume(v) {
+  volume = Math.max(0, Math.min(100, v));
+  if (playerReady) { player.setVolume(volume); if (volume > 0) player.unMute(); }
+  persistPrefs();
+}
+
+/* ================= LOCK SCREEN (MEDIA SESSION) ================= */
+function updateMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  const t = playlist[current];
+  try {
+    if (t) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: t.title,
+        artist: 'RODEO.VN',
+        album: 'NONSTOP RADIO',
+        artwork: [{ src: t.thumb, sizes: '320x180', type: 'image/jpeg' }],
+      });
+    }
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+  } catch {}
+}
+if ('mediaSession' in navigator) {
+  try {
+    navigator.mediaSession.setActionHandler('play', togglePlay);
+    navigator.mediaSession.setActionHandler('pause', togglePlay);
+    navigator.mediaSession.setActionHandler('nexttrack', next);
+    navigator.mediaSession.setActionHandler('previoustrack', prev);
+  } catch {}
+}
+
+/* ================= ADD FLOW ================= */
+function parseYouTubeId(input) {
+  input = input.trim();
+  if (/^[\w-]{11}$/.test(input)) return input;
+  try {
+    const u = new URL(input);
+    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('/')[0];
+    if (u.searchParams.get('v')) return u.searchParams.get('v');
+    const m = u.pathname.match(/\/(embed|shorts|live)\/([\w-]{11})/);
+    if (m) return m[2];
+  } catch {}
+  return null;
+}
+
+function addTrack(id) {
+  const track = { id, title: 'TRACK ' + id, thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`, addedAt: Date.now() };
+  playlist.push(track);
+  persist(LS_PLAYLIST, playlist);
+  fetchTitle(track);
+  toast('ADDED TO PLAYLIST');
+  if (playlist.length === 1) playIndex(0, false);
+  else rebuildPlayerPlaylist();
+  renderAll();
+}
+
+async function fetchTitle(track) {
+  if (!track || (track.title && !track.title.startsWith('TRACK '))) return;
+  try {
+    const r = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${track.id}`);
+    const j = await r.json();
+    if (j && j.title) {
+      track.title = j.title;
+      persist(LS_PLAYLIST, playlist);
+      renderAll();
+    }
+  } catch {}
+}
+
+/* ---- youtube playlist (list=...) import ---- */
+function parseYouTubeList(input) {
+  try { return new URL(input.trim()).searchParams.get('list'); } catch {}
+  return null;
+}
+
+let importPending = null;
+
+function importYouTubePlaylist(listId, fallbackId) {
+  if (!playerReady) { toast('PLAYER STILL LOADING — TRY AGAIN'); return; }
+  importPending = {
+    wasPlaying: playing,
+    resumeId: playlist[current] ? playlist[current].id : null,
+    resumeAt: (playing && player.getCurrentTime) ? Math.floor(player.getCurrentTime()) : 0,
+    timer: setTimeout(() => {
+      importPending = null;
+      if (fallbackId && !playlist.some(t => t.id === fallbackId)) {
+        addTrack(fallbackId); // list failed, add the single video instead
+      } else {
+        toast('PLAYLIST IMPORT FAILED');
+        rebuildPlayerPlaylist();
+      }
+    }, 10000),
+  };
+  toast('IMPORTING PLAYLIST…');
+  player.cuePlaylist({ listType: 'playlist', list: listId });
+}
+
+function finishImport() {
+  const job = importPending;
+  importPending = null;
+  clearTimeout(job.timer);
+  const ids = (player.getPlaylist() || []).slice(0, 100);
+  const fresh = [];
+  ids.forEach(id => {
+    if (!playlist.some(t => t.id === id)) {
+      const track = { id, title: 'TRACK ' + id, thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`, addedAt: Date.now() };
+      playlist.push(track);
+      fresh.push(track);
+    }
+  });
+  persist(LS_PLAYLIST, playlist);
+  fresh.slice(0, 30).forEach(fetchTitle); // the rest pick up titles as they play
+  toast(fresh.length ? 'IMPORTED ' + fresh.length + ' TRACKS' : 'NO NEW TRACKS IN LIST');
+  if (job.resumeId) {
+    const idx = playlist.findIndex(t => t.id === job.resumeId);
+    if (idx !== -1) current = idx;
+  }
+  if (playlist.length) {
+    if (job.wasPlaying) player.loadPlaylist(trackIds(), current, job.resumeAt);
+    else player.cuePlaylist(trackIds(), current);
+    player.setLoop(true);
+  }
+  persistPrefs();
+  renderAll();
+}
+
+function addFromInput() {
+  const input = document.getElementById('add-input');
+  const raw = input.value;
+  const listId = parseYouTubeList(raw);
+  const id = parseYouTubeId(raw);
+  if (listId) { input.value = ''; importYouTubePlaylist(listId, id); return; }
+  if (!id) { toast('NOT A YOUTUBE URL'); return; }
+  if (playlist.some(t => t.id === id)) { toast('ALREADY IN PLAYLIST'); input.value = ''; return; }
+  input.value = '';
+  addTrack(id);
+}
+
+/* ================= SAVE ================= */
+function saveCurrent() {
+  const t = playlist[current];
+  if (!t) { toast('NOTHING PLAYING'); return; }
+  if (saved.some(s => s.id === t.id)) { toast('ALREADY SAVED'); return; }
+  saved.push({ id: t.id, title: t.title, thumb: t.thumb, savedAt: Date.now() });
+  persist(LS_SAVED, saved);
+  toast('SAVED ♥ ' + short(t.title, 20));
+  renderAll();
+}
+
+function short(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+
+/* ================= RENDER ================= */
+function renderDeck() {
+  const t = playlist[current];
+  const art = document.getElementById('artwork');
+  const title = document.getElementById('now-title');
+  const playBtn = document.getElementById('btn-play');
+
+  if (t) {
+    art.src = t.thumb;
+    art.classList.remove('empty');
+    title.textContent = t.title;
+    title.classList.toggle('scroll', t.title.length > 22);
+  } else {
+    art.classList.add('empty');
+    title.textContent = 'PLAYLIST EMPTY — PASTE A URL BELOW';
+    title.classList.add('scroll');
+  }
+  playBtn.innerHTML = playing ? '&#10073;&#10073;' : '&gt;';
+  document.getElementById('btn-shuffle').classList.toggle('toggled', shuffle);
+  document.title = (playing && t) ? '▶ ' + t.title + ' — RODEO.VN' : 'RODEO.VN — NONSTOP RADIO';
+}
+
+function renderList() {
+  const ul = document.getElementById('tracklist');
+  ul.innerHTML = '';
+  const items = activeTab === 'playlist' ? playlist : saved;
+
+  if (!items.length) {
+    const li = document.createElement('li');
+    li.className = 'list-empty';
+    li.style.cursor = 'default';
+    li.textContent = activeTab === 'playlist'
+      ? 'NO TRACKS. PASTE A YOUTUBE URL BELOW.'
+      : 'NOTHING SAVED YET. HIT [ SAVE ♥ ] WHILE A TRACK PLAYS.';
+    ul.appendChild(li);
+    return;
+  }
+
+  items.forEach((t, i) => {
+    const li = document.createElement('li');
+    const isCurrent = activeTab === 'playlist' && i === current;
+    const isDead = deadIds.has(t.id);
+    li.className = (isCurrent ? 'current' : '') + (isDead ? ' dead' : '');
+    li.innerHTML = `
+      <span class="no">${isDead ? '✕' : (isCurrent && playing ? '▶' : String(i + 1).padStart(2, '0'))}</span>
+      <img src="${t.thumb}" alt="" loading="lazy">
+      <span class="t">${escapeHtml(t.title)}${isDead ? ' <b>[DEAD]</b>' : ''}</span>
+      <button class="x" title="Remove">✕</button>`;
+    li.onclick = () => {
+      if (activeTab === 'playlist') {
+        playIndex(i, true);
+      } else {
+        // play a saved track: add to playlist if missing, then jump to it
+        let idx = playlist.findIndex(p => p.id === t.id);
+        if (idx === -1) {
+          playlist.push({ id: t.id, title: t.title, thumb: t.thumb, addedAt: Date.now() });
+          persist(LS_PLAYLIST, playlist);
+          idx = playlist.length - 1;
+        }
+        playIndex(idx, true);
+      }
+    };
+    li.querySelector('.x').onclick = (e) => {
+      e.stopPropagation();
+      if (activeTab === 'playlist') {
+        removeFromPlaylist(i);
+      } else {
+        saved.splice(i, 1);
+        persist(LS_SAVED, saved);
+        toast('REMOVED FROM SAVED');
+        renderAll();
+      }
+    };
+    ul.appendChild(li);
+  });
+}
+
+function removeFromPlaylist(i) {
+  const wasCurrent = i === current;
+  playlist.splice(i, 1);
+  if (i < current) current--;
+  if (current >= playlist.length) current = 0;
+  persist(LS_PLAYLIST, playlist);
+  persistPrefs();
+  if (!playlist.length) {
+    if (playerReady) player.stopVideo();
+    playing = false;
+  } else if (wasCurrent) {
+    playIndex(current, playing);
+  } else {
+    rebuildPlayerPlaylist();
+  }
+  toast('REMOVED');
+  renderAll();
+}
+
+function renderAll() { renderDeck(); renderList(); updateMediaSession(); }
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ================= WIRING ================= */
+document.getElementById('btn-play').onclick = togglePlay;
+document.getElementById('btn-next').onclick = next;
+document.getElementById('btn-prev').onclick = prev;
+document.getElementById('btn-shuffle').onclick = () => { shuffle = !shuffle; persistPrefs(); renderDeck(); toast(shuffle ? 'SHUFFLE ON' : 'SHUFFLE OFF'); };
+document.getElementById('btn-save').onclick = saveCurrent;
+document.getElementById('btn-add').onclick = addFromInput;
+document.getElementById('add-input').addEventListener('keydown', e => { if (e.key === 'Enter') addFromInput(); });
+
+/* ---- QR takes over the artwork frame ---- */
+let qrShown = false;
+document.getElementById('btn-qr').onclick = () => {
+  qrShown = !qrShown;
+  if (qrShown) {
+    syncUrl();
+    const url = shareUrl();
+    const img = document.getElementById('qr-art');
+    img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&qzone=2&data=' + encodeURIComponent(url);
+    img.dataset.url = url;
+    toast('SCAN TO TUNE IN — TAP QR TO COPY');
+  }
+  document.getElementById('artwork-wrap').classList.toggle('show-qr', qrShown);
+};
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('LINK COPIED');
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); toast('LINK COPIED'); }
+    catch { toast('COPY BLOCKED'); }
+    ta.remove();
+  }
+}
+document.getElementById('qr-art').onclick = e => copyText(e.target.dataset.url || shareUrl());
+
+/* ---- seek via the TRACK bar ---- */
+const nowSeek = document.getElementById('now-seek');
+const progressEl = document.getElementById('progress');
+let seeking = false;
+
+function seekFromEvent(e) {
+  if (!playerReady || !playlist.length) return;
+  const rect = nowSeek.getBoundingClientRect();
+  const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  const d = player.getDuration() || 0;
+  if (d > 0) {
+    player.seekTo(frac * d, true);
+    progressEl.style.width = (frac * 100) + '%';
+  }
+}
+nowSeek.addEventListener('pointerdown', e => {
+  seeking = true;
+  nowSeek.setPointerCapture(e.pointerId);
+  seekFromEvent(e);
+});
+nowSeek.addEventListener('pointermove', e => { if (seeking) seekFromEvent(e); });
+nowSeek.addEventListener('pointerup', () => { seeking = false; });
+nowSeek.addEventListener('pointercancel', () => { seeking = false; });
+
+setInterval(() => {
+  if (!playerReady || !playing || seeking) return;
+  const d = player.getDuration() || 0;
+  if (d > 0) progressEl.style.width = (player.getCurrentTime() / d * 100) + '%';
+}, 500);
+document.getElementById('tab-playlist').onclick = () => switchTab('playlist');
+document.getElementById('tab-saved').onclick = () => switchTab('saved');
+
+/* ---- dark mode ---- */
+const LS_THEME = 'rodeo.theme';
+function effectiveTheme() {
+  return document.documentElement.dataset.theme ||
+    (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+}
+function applyTheme(pref) {
+  if (pref) document.documentElement.dataset.theme = pref;
+  else delete document.documentElement.dataset.theme;
+  document.getElementById('btn-theme').textContent = effectiveTheme() === 'dark' ? 'LIT' : 'DRK';
+}
+applyTheme(localStorage.getItem(LS_THEME));
+document.getElementById('btn-theme').onclick = () => {
+  const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+  localStorage.setItem(LS_THEME, next);
+  applyTheme(next);
+};
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tab-playlist').classList.toggle('active', tab === 'playlist');
+  document.getElementById('tab-saved').classList.toggle('active', tab === 'saved');
+  renderList();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'ArrowRight') next();
+  if (e.code === 'ArrowLeft') prev();
+  if (e.code === 'ArrowUp') { e.preventDefault(); setVolume(volume + 10); }
+  if (e.code === 'ArrowDown') { e.preventDefault(); setVolume(volume - 10); }
+});
+
+/* ================= BOOT ================= */
+playlist.forEach(fetchTitle);
+renderAll();
+</script>
+</body>
+</html>
